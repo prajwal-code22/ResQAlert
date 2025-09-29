@@ -1,0 +1,17 @@
+Django>=4.2
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+django-environ
+channels
+channels-redis
+redis
+psycopg2-binary
+geopy
+pyfcm
+requests
+Pillow
+django-rest-framework-gis
+drf-yasg
+django-debug-toolbar
+django-extensions
