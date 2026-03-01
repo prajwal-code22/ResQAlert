@@ -2,7 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 class User(AbstractUser):
-
+    
     ROLE_CHOICES = (
         ('victim', 'Victim'),
         ('responder', 'Responder'),
@@ -27,6 +27,22 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
+
+class UserDevice(models.Model):
+    DEVICE_TYPE_CHOICES = (
+        ('android', 'Android'),
+        ('ios', 'iOS'),
+        ('web', 'Web')
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='devices')
+    fcm_token = models.CharField(max_length=255)
+    device_type = models.CharField(max_length=20, choices=DEVICE_TYPE_CHOICES)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.user.username}'s Device ({self.device_type})"
+    
     
 class UserLocation(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='location')
