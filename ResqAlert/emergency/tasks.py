@@ -1,6 +1,8 @@
 from accounts.models import EmergencyRequest, EmergencyResponder
 from find_responder import find_nearby_responders
 from celery import shared_task
+from .notifications import send_notification
+
 
 @shared_task
 def process_emergency_request(emergency_id, radius=10):
@@ -10,8 +12,6 @@ def process_emergency_request(emergency_id, radius=10):
 
         if emergency.status != "searching":
             return
-
-        max_radius = 50
 
         responders = find_nearby_responders(
             emergency.latitude,
@@ -24,15 +24,21 @@ def process_emergency_request(emergency_id, radius=10):
             responders = responders[:3]
 
             for res in responders:
-                EmergencyResponder.objects.create(
+
+                if not EmergencyResponder.objects.filter(
                     emergency=emergency,
-                    responder=res['user'],
-                    status='notified',
-                )
+                    responder=res['user']
+                ).exists():
 
-                send_notification(res['user'], emergency)
+                    EmergencyResponder.objects.create(
+                        emergency=emergency,
+                        responder=res['user'],
+                        status='notified',
+                    )
 
-        # 🔥 Schedule check after 60 seconds
+                    send_notification(res['user'], emergency)
+
+        # Schedule next check after 60 seconds
         check_emergency_status.apply_async(
             args=[emergency_id, radius],
             countdown=60
@@ -40,49 +46,24 @@ def process_emergency_request(emergency_id, radius=10):
 
     except EmergencyRequest.DoesNotExist:
         return
-    
+
+
+@shared_task
+def check_emergency_status(emergency_id, radius):
     try:
-        emergency=EmergencyRequest.objects.get(id=emergency_id)
-        radius=10
-        max_radius=50
-        wait_time=60
-        responder=find_nearby_responders(
-            emergency.latitude,
-            emergency.longitude,
-            emergency.category,
-            radius_km=radius
-        )
-        while not responder and radius<=max_radius:
-            radius+=10
-            responder=find_nearby_responders(
-                emergency.latitude,
-                emergency.longitude,
-                emergency.category,
-                radius_km=radius
-            )
-        if responder:
-            responder=responder[:3]
-            for res in responder:
-                EmergencyResponder.objects.create(
-                    request=emergency,
-                    responder=res['user'],
-                    status='notified',
-                )
-                # here to send notification to responder with position according to category(like fire emergency than to fire fighter)
-                # here to check whether responder accepted or not and update status accordingly
-                # if accepted then assign request to responder and update request status to accepted
-                # if not accepted then after wait_time seconds check for next responder and repeat the process until max_radius is reached or responders are available
-                import time
-                time.sleep(wait_time)
-                # check if request is accepted
-                emergency.refresh_from_db()
-                if emergency.status == 'accepted':
+        emergency = EmergencyRequest.objects.get(id=emergency_id)
 
+        if emergency.status == 'accepted':
+            return
 
-                    
-                else:
-                    continue
+        radius += 10
 
+        if radius > 50:
+            emergency.status = 'no_responders'
+            emergency.save()
+            return
+
+        process_emergency_request.delay(emergency_id, radius)
 
     except EmergencyRequest.DoesNotExist:
         return
