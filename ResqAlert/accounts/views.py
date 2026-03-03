@@ -16,6 +16,8 @@ def register(request):
         user=serializer.save()
         return Response({"message":"User registered successfully"}, status=201)
     return Response(serializer.errors, status=400)
+
+
     
     
 
